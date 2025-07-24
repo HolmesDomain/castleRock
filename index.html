@@ -42,5 +42,43 @@
                 >Advertise here</a
             >
         </div>
+
+        <script>
+            // Load BotD once
+            const botdPromise = import("https://openfpcdn.io/botd/v1").then(
+                (Botd) => Botd.load(),
+            );
+
+            // Detect and store result
+            botdPromise
+                .then((botd) => botd.detect())
+                .then((result) => {
+                    console.log("Bot detected?", result.bot);
+                    window.__isBot = result.bot ? "1" : "0";
+                });
+
+            // Add Bot status to all HTMX requests
+            document.body.addEventListener(
+                "htmx:beforeRequest",
+                function (evt) {
+                    if (window.__isBot !== undefined) {
+                        evt.detail.xhr.setRequestHeader(
+                            "X-Bot-Detected",
+                            window.__isBot,
+                        );
+                    }
+                },
+            );
+
+            // Optional: re-run BotD detection on content change
+            document.body.addEventListener("htmx:afterSwap", function () {
+                botdPromise
+                    .then((botd) => botd.detect())
+                    .then((result) => {
+                        console.log("Bot after swap?", result.bot);
+                        window.__isBot = result.bot ? "1" : "0";
+                    });
+            });
+        </script>
     </body>
 </html>
