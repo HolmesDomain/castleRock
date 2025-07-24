@@ -1,0 +1,30 @@
+{
+  "name": "stealth-bot-nodejs",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Stealth headless browser bot using Node.js and Puppeteer",
+  "main": "stealth-bot.js",
+  "scripts": {
+    "start": "node stealth-bot.js",
+    "test": "node stealth-bot.js",
+    "dev": "node --inspect stealth-bot.js"
+  },
+  "dependencies": {
+    "puppeteer": "^21.11.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "puppeteer",
+    "stealth",
+    "bot",
+    "scraping",
+    "headless",
+    "browser"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
