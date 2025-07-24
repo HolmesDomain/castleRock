@@ -223,71 +223,13 @@ const analyzeCastleRockSite = async () => {
     });
 
     if (isBlocked) {
-      console.log("🚫 DETECTED: Vercel bot protection is blocking access");
-      console.log("📋 Current URL:", await page.url());
-      console.log("📋 Current Title:", await page.title());
-      console.log("💡 Try disabling bot protection in Vercel dashboard:");
-      console.log("   1. Go to vercel.com/dashboard");
-      console.log("   2. Find your project");
-      console.log("   3. Settings → Security → Turn OFF Bot Protection");
-
-      // Try alternative approaches
-      console.log("🔄 Attempting enhanced stealth bypass...");
-
-      // Clear all cookies and try again
-      await page.deleteCookie(...(await page.cookies()));
-
-      // Try with different user agent
-      await page.setUserAgent(
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+      console.log("🚫 FAILED: Vercel is still blocking access.");
+      console.log(
+        "   Please ensure bot protection is disabled in the Vercel dashboard.",
       );
-
-      // Add more realistic headers
-      await page.setExtraHTTPHeaders({
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        DNT: "1",
-        Connection: "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Cache-Control": "max-age=0",
-      });
-
-      // Try direct navigation again
-      try {
-        await page.goto(targetUrl, {
-          waitUntil: "networkidle0",
-          timeout: 30000,
-        });
-
-        const stillBlocked = await page.evaluate(() => {
-          return (
-            document.title.includes("Login") ||
-            document.title.includes("Vercel") ||
-            window.location.href.includes("vercel.com/login")
-          );
-        });
-
-        if (stillBlocked) {
-          console.log("❌ Enhanced bypass failed - site is still protected");
-          console.log("📝 Falling back to local file analysis...");
-
-          // Fall back to local file
-          const localUrl = `file://${process.cwd()}/index.html`;
-          await page.goto(localUrl, { waitUntil: "domcontentloaded" });
-          console.log("✅ Using local file for analysis");
-        } else {
-          console.log("✅ Enhanced bypass successful!");
-        }
-      } catch (bypassError) {
-        console.log("❌ Bypass attempt failed, using local file");
-        const localUrl = `file://${process.cwd()}/index.html`;
-        await page.goto(localUrl, { waitUntil: "domcontentloaded" });
-      }
+      console.log("   URL:", await page.url());
+      console.log("   Title:", await page.title());
+      throw new Error("Access denied by Vercel bot protection.");
     } else {
       console.log("✅ Successfully accessed the site!");
     }
