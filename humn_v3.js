@@ -97,7 +97,7 @@ export const simulateHumanActivity = async (page) => {
 /* ---------- impression routine with jitter ---------- */
 export const jitterSession = async (
   page,
-  adSelector = 'iframe[data-aa="2403936"]',
+  adSelector = 'iframe[data-aa="2404457"]',
   minDwell = 3000,
   maxDwell = 6000,
 ) => {
