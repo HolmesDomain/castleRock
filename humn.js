@@ -1,5 +1,6 @@
 // stealth-bot.js
 import puppeteer from "puppeteer-extra";
+console.log("Current working directory:", process.cwd());
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { executablePath } from "puppeteer";
 
@@ -27,7 +28,7 @@ const getCurrentUserAgent = () => {
 };
 
 // Random delay function
-const randomDelay = (min = 1000, max = 3000) => {
+const randomDelay = (min = 7000, max = 7000) => {
   return new Promise((resolve) => {
     setTimeout(resolve, Math.floor(Math.random() * (max - min + 1)) + min);
   });
@@ -85,6 +86,12 @@ const createStealthBrowser = async () => {
       "--disable-features=TranslateUI",
       "--disable-ipc-flooding-protection",
       "--disable-web-security",
+      "--disable-gpu",
+      "--disable-gpu-sandbox",
+      "--disable-software-rasterizer",
+      "--disable-dev-shm-usage",
+      "--no-zygote",
+      "--no-sandbox",
       "--disable-features=VizDisplayCompositor",
       "--disable-features=BlockInsecurePrivateNetworkRequests",
       "--disable-features=VizDisplayCompositor,VizHitTestSurfaceLayer",
@@ -196,6 +203,7 @@ const analyzeCastleRockSite = async () => {
     let retries = 3;
     while (retries > 0) {
       try {
+        console.log("Trying to load URL");
         await page.goto(targetUrl, {
           waitUntil: "domcontentloaded",
           timeout: 30000,
@@ -227,6 +235,8 @@ const analyzeCastleRockSite = async () => {
       console.log(
         "   Please ensure bot protection is disabled in the Vercel dashboard.",
       );
+      console.error("URL", await page.url());
+      console.error("error", error);
       console.log("   URL:", await page.url());
       console.log("   Title:", await page.title());
       throw new Error("Access denied by Vercel bot protection.");
@@ -237,11 +247,11 @@ const analyzeCastleRockSite = async () => {
     // Take full page screenshot
     console.log("Taking screenshot...");
     await page.screenshot({
-      path: "castle-rock-analysis.png",
+      path: "tests/castle-rock-analysis.png",
       fullPage: true,
     });
 
-    console.log("Screenshot saved as castle-rock-analysis.png");
+    console.log("Screenshot saved as tests/castle-rock-analysis.png");
 
     // Comprehensive site analysis
     const siteData = await page.evaluate(() => {
@@ -356,6 +366,7 @@ const analyzeCastleRockSite = async () => {
   } catch (error) {
     console.error("ERROR: Error during site analysis:", error.message);
     console.error("Full error:", error);
+    console.error("analyzeCastleRockSite error", error);
   } finally {
     if (browser) {
       try {
