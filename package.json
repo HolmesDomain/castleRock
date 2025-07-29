@@ -10,6 +10,7 @@
     "dev": "node --inspect stealth-bot.js"
   },
   "dependencies": {
+    "crawlee": "^3.14.0",
     "ghost-cursor": "^1.4.1",
     "puppeteer": "^24.15.0",
     "puppeteer-extra": "^3.3.6",

@@ -1,0 +1,64 @@
+{
+  "requestsFinished": 0,
+  "requestsFailed": 1,
+  "requestsRetries": 1,
+  "requestsFailedPerMinute": 0,
+  "requestsFinishedPerMinute": 0,
+  "requestMinDurationMillis": null,
+  "requestMaxDurationMillis": 0,
+  "requestTotalFailedDurationMillis": 60307,
+  "requestTotalFinishedDurationMillis": 0,
+  "crawlerStartedAt": "2025-07-28T04:21:54.142Z",
+  "crawlerFinishedAt": "2025-07-28T04:25:02.024Z",
+  "statsPersistedAt": "2025-07-28T04:25:02.024Z",
+  "crawlerRuntimeMillis": 187966,
+  "crawlerLastStartTimestamp": 1753676514058,
+  "requestRetryHistogram": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    1
+  ],
+  "statsId": 0,
+  "requestAvgFailedDurationMillis": 60307,
+  "requestAvgFinishedDurationMillis": null,
+  "requestTotalDurationMillis": 60307,
+  "requestsTotal": 1,
+  "requestsWithStatusCode": {
+    "200": 2
+  },
+  "errors": {
+    "native:7:39": {
+      "missing error code": {
+        "ReferenceError": {
+          "pick is not defined": {
+            "count": 1
+          }
+        }
+      }
+    }
+  },
+  "retryErrors": {
+    "native:7:39": {
+      "missing error code": {
+        "Error": {
+          "net::ERR_TIMED_OUT at https://castle-rock-84pq0v03i-holmesdomains-projects.vercel.app": {
+            "count": 2
+          },
+          "Detected a session error, rotating session... ": {
+            "count": 4
+          }
+        },
+        "ReferenceError": {
+          "pick is not defined": {
+            "count": 1
+          }
+        }
+      }
+    }
+  }
+}

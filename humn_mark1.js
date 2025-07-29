@@ -1,4 +1,4 @@
-// humn_v2_diverse.js – stealth bot with geo, device, UA, & impression spoofing
+// humn_v2_diverse.js – stealth bot with geo, device, UA, & impression spoofing + SOAX proxy integration
 import puppeteer from "puppeteer-extra";
 import Stealth from "puppeteer-extra-plugin-stealth";
 import { executablePath } from "puppeteer";
@@ -67,6 +67,14 @@ const deviceProfiles = [
 /* ---------- random viewport + UA generator ---------- */
 const getRandomDevice = () => pick(deviceProfiles);
 
+/* ---------- SOAX proxy config (updated credentials with session) ---------- */
+const proxy = {
+  host: "proxy.soax.com",
+  port: 5000,
+  username: "package-307508-sessionid-7tMNBI9GBZmZ6yaI-sessionlength-300",
+  password: "F7z92WUCQUo6vgGc",
+};
+
 /* ---------- generic human scroll (optional) ---------- */
 export const simulateHumanActivity = async (page) => {
   const cursor = createCursor(page);
@@ -119,7 +127,7 @@ export const impressionSession = async (
   await sleep(4000, 7000);
 };
 
-/* ---------- stealth browser ---------- */
+/* ---------- stealth browser with proxy ---------- */
 export const createStealthBrowser = async () => {
   const device = getRandomDevice();
   const geo = pickGeo();
@@ -137,12 +145,22 @@ export const createStealthBrowser = async () => {
       "--disable-extensions",
       "--disable-default-apps",
       "--disable-dev-shm-usage",
+      `--proxy-server=http://${proxy.host}:${proxy.port}`, // SOAX proxy server (HTTP for mobile)
+      "--ignore-certificate-errors",
+      "--ignore-http-errors",
     ],
     ignoreDefaultArgs: ["--enable-automation"],
     defaultViewport: null,
   });
 
   const page = await browser.newPage();
+
+  // Authenticate proxy (required for SOAX)
+  await page.authenticate({
+    username: proxy.username,
+    password: proxy.password,
+  });
+
   await page.setUserAgent(device.ua());
   await page.setViewport({ width: device.width, height: device.height });
   await page.setExtraHTTPHeaders({ "Accept-Language": geo.lang });
@@ -201,7 +219,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         waitUntil: "networkidle2",
         timeout: 30_000,
       });
-      await impressionSession(page, 'iframe[data-aa="2404102"]');
+      await impressionSession(page, 'iframe[data-aa="2403936"]');
       console.log("✅ Impression session finished.");
     } catch (err) {
       console.error("❌", err.message);
