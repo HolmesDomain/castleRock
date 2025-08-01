@@ -9,6 +9,9 @@ import { dirname } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 puppeteer.use(Stealth());
 
+/* ---------- Global Constants ---------- */
+const AD_UNIT_ID = "2403936"; // Set your ad unit ID here
+
 /* ---------- helpers ---------- */
 const sleep = (min, max) =>
   new Promise((r) =>
@@ -77,60 +80,102 @@ const proxy = {
 
 /* ---------- generic human scroll (optional) ---------- */
 export const simulateHumanActivity = async (page) => {
+  console.log("[LOG] Starting human activity simulation...");
   const cursor = createCursor(page);
   const scrollHeight = await page.evaluate(() => document.body.scrollHeight);
+  console.log("[LOG] Scroll height:", scrollHeight);
 
   await cursor.move("body");
-  await sleep(800, 2000);
+  await sleep(500, 1500); // Reduced for speed
 
   await page.evaluate(async (maxY) => {
     const delay = (ms) => new Promise((r) => setTimeout(r, ms));
     let y = 0;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
+      // Reduced loops
       const delta = Math.random() > 0.7 ? -200 : 200;
       y += delta * (Math.random() * 1.5 + 0.5);
       y = Math.max(0, Math.min(y, maxY));
       window.scrollTo({ top: y, behavior: "smooth" });
-      await delay(Math.random() * 2500 + 1000);
+      await delay(Math.random() * 1500 + 500); // Reduced delays
     }
   }, scrollHeight);
 
-  await sleep(12000, 20000);
+  await sleep(8000, 12000); // Reduced overall
+  console.log("[LOG] Human activity simulation completed.");
 };
 
 /* ---------- impression routine ---------- */
 export const impressionSession = async (
   page,
-  adSelector = 'iframe[data-aa="2404457"]',
-  minDwell = 2000,
-  maxDwell = 4000,
+  adSelector = `iframe[data-aa="${AD_UNIT_ID}"]`, // Use global ID
+  minDwell = 1000,
+  maxDwell = 2500, // Reduced for speed
 ) => {
+  console.log("[LOG] Starting impression session...");
+
+  // Removed waitForResponse here – it's now handled before/after goto in the CLI
+
   const cursor = createCursor(page);
 
-  await page.waitForSelector(adSelector, { timeout: 15_000 });
+  console.log("[LOG] Attempting to wait for iframe selector:", adSelector);
+  let iframeElement;
+  try {
+    iframeElement = await page.waitForSelector(adSelector, { timeout: 30000 }); // Reduced from 45s
+    console.log("[LOG] Iframe found.");
+  } catch (err) {
+    console.error("[LOG] Iframe timeout error:", err.message);
+    const pageContent = await page.content();
+    console.log("[LOG] Page HTML after load:", pageContent); // Debug full HTML
+    // Fallback to general ad container (updated to match iframe style in your HTML logs)
+    console.log("[LOG] Falling back to general ad container.");
+    adSelector = 'iframe[style*="overflow: hidden"]'; // Targets the iframe directly based on HTML
+    iframeElement = await page.$(adSelector); // Use $ for immediate query, no wait
+    if (iframeElement) console.log("[LOG] Fallback selector found.");
+  }
 
-  const box = await page.$eval(adSelector, (el) => {
-    const { top, height } = el.getBoundingClientRect();
-    return { top, height };
-  });
-  const scrollTarget = box.top + box.height / 2 - 250;
-  await page.evaluate(
-    (tgt) => window.scrollTo({ top: tgt, behavior: "smooth" }),
-    scrollTarget,
-  );
-  await sleep(1200, 2000);
+  if (iframeElement) {
+    const box = await page.$eval(adSelector, (el) => {
+      const { top, height } = el.getBoundingClientRect();
+      return { top, height };
+    });
+    console.log("[LOG] Iframe bounding box:", box);
 
-  await cursor.move(adSelector, { paddingPercentage: 15 });
-  await sleep(minDwell, maxDwell);
+    const scrollTarget = box.top + box.height / 2 - 250;
+    await page.evaluate(
+      (tgt) => window.scrollTo({ top: tgt, behavior: "smooth" }),
+      scrollTarget,
+    );
+    await sleep(800, 1500); // Reduced
+    console.log("[LOG] Scrolled to ad.");
 
-  await page.evaluate(() => window.scrollBy(0, Math.random() * 80 + 20));
-  await sleep(4000, 7000);
+    await cursor.move(adSelector, { paddingPercentage: 15 });
+    await sleep(minDwell, maxDwell);
+    console.log("[LOG] Hovered over ad.");
+
+    await page.evaluate(() => window.scrollBy(0, Math.random() * 80 + 20));
+    await sleep(3000, 5000); // Reduced
+    console.log("[LOG] Performed secondary scroll.");
+  } else {
+    console.log(
+      "[LOG] No ad selector found; proceeding with page simulation (impression already counted).",
+    );
+    await simulateHumanActivity(page); // Run general simulation as fallback
+  }
+
+  console.log("[LOG] Impression session completed.");
 };
 
 /* ---------- stealth browser with proxy ---------- */
-export const createStealthBrowser = async () => {
+export const createStealthBrowser = async (customProxy = proxy) => {
+  console.log(
+    "[LOG] Creating stealth browser with proxy:",
+    customProxy.username,
+  );
   const device = getRandomDevice();
+  console.log("[LOG] Selected device:", device);
   const geo = pickGeo();
+  console.log("[LOG] Selected geo profile:", geo);
 
   const browser = await puppeteer.launch({
     headless: "new",
@@ -145,26 +190,57 @@ export const createStealthBrowser = async () => {
       "--disable-extensions",
       "--disable-default-apps",
       "--disable-dev-shm-usage",
-      `--proxy-server=http://${proxy.host}:${proxy.port}`, // SOAX proxy server (HTTP for mobile)
+      `--proxy-server=http://${customProxy.host}:${customProxy.port}`, // Use customProxy
       "--ignore-certificate-errors",
       "--ignore-http-errors",
+      "--disable-images", // Disable images for speed
+      "--disable-gpu", // Optional for headless
+      "--disable-background-networking", // Headless opt: disable background net
+      "--disable-sync", // Headless opt: disable sync
     ],
     ignoreDefaultArgs: ["--enable-automation"],
     defaultViewport: null,
   });
+  console.log("[LOG] Browser launched.");
 
   const page = await browser.newPage();
+  console.log("[LOG] New page created.");
+
+  // Disable non-essential resources for speed
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    if (
+      ["image", "stylesheet", "font", "media", "other"].includes(
+        req.resourceType(),
+      )
+    ) {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
+  console.log(
+    "[LOG] Resource interception enabled (disabled images/CSS/fonts/media).",
+  );
 
   // Authenticate proxy (required for SOAX)
   await page.authenticate({
-    username: proxy.username,
-    password: proxy.password,
+    username: customProxy.username,
+    password: customProxy.password,
   });
+  console.log("[LOG] Proxy authenticated.");
 
   await page.setUserAgent(device.ua());
+  console.log("[LOG] User agent set:", device.ua());
+
   await page.setViewport({ width: device.width, height: device.height });
+  console.log("[LOG] Viewport set:", device.width, "x", device.height);
+
   await page.setExtraHTTPHeaders({ "Accept-Language": geo.lang });
+  console.log("[LOG] Accept-Language header set:", geo.lang);
+
   await page.emulateTimezone(geo.tz);
+  console.log("[LOG] Timezone emulated:", geo.tz);
 
   // fingerprints
   await page.evaluateOnNewDocument(() => {
@@ -203,28 +279,60 @@ export const createStealthBrowser = async () => {
       return nativeToString.call(this);
     };
   });
+  console.log("[LOG] Fingerprint masking applied.");
 
   return { browser, page };
 };
 
 /* ---------- CLI ---------- */
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const TARGET_URL =
-    "https://castle-rock-84pq0v03i-holmesdomains-projects.vercel.app";
+  const TARGET_URL = "https://castle-rock.vercel.app/";
   (async () => {
+    const startTime = performance.now(); // Start timing
     const { browser, page } = await createStealthBrowser();
     try {
       console.log("🚀 Visiting:", TARGET_URL);
+
+      // NEW: Set up promise for ad response before goto to catch it during load
+      console.log("[LOG] Waiting for ad script response...");
+      const adResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().includes("ad.a-ads.com") && response.status() === 200,
+        { timeout: 30000 }, // Increase to 45000 if proxy is slow
+      );
+
+      // Optional debug: Log all responses to track ad-related ones
+      page.on("response", (response) => {
+        if (response.url().includes("ad.a-ads.com")) {
+          console.log(
+            `[DEBUG] Ad response: ${response.url()} - Status: ${response.status()}`,
+          );
+        }
+      });
+
       await page.goto(TARGET_URL, {
         waitUntil: "networkidle2",
         timeout: 30_000,
       });
-      await impressionSession(page, 'iframe[data-aa="2403936"]');
+      console.log("[LOG] Page loaded successfully.");
+
+      // NEW: Await the ad response after goto (confirms it happened during load)
+      await adResponsePromise;
+      console.log("[LOG] Ad script response received.");
+
+      const initialContent = await page.content();
+      console.log("[LOG] Initial page HTML:", initialContent); // Debug HTML after load
+      await impressionSession(page);
       console.log("✅ Impression session finished.");
     } catch (err) {
       console.error("❌", err.message);
     } finally {
       await browser.close();
+      console.log("[LOG] Browser closed.");
+      const endTime = performance.now();
+      console.log(
+        `Script Execution Time: ${(endTime - startTime).toFixed(2)}ms`,
+      );
     }
   })();
 }

@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 
-// use_bot.js – Example script that uses the humn_mark1 bot with single browser reuse for efficiency
+// use_bot.js – Example script that uses the humn_mark1 bot with parallel sessions for efficiency
 
 // Copy these from humn_mark1.js (or export them there and import here)
-const proxy = {
+const proxyBase = {
   host: "proxy.soax.com",
   port: 5000,
-  username: "package-307508-sessionid-7tMNBI9GBZmZ6yaI-sessionlength-300",
+  username: "package-307508-sessionid-", // Base username; we'll append unique ID
   password: "F7z92WUCQUo6vgGc",
 };
 const geoProfiles = [
@@ -55,155 +55,106 @@ const deviceProfiles = [
 ];
 const getRandomDevice = () => pick(deviceProfiles);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const sleep = (min, max) =>
+  new Promise((r) =>
+    setTimeout(r, Math.floor(Math.random() * (max - min + 1)) + min),
+  );
 
 import { createStealthBrowser, impressionSession } from "../humn_mark1.js";
+import plimit from "p-limit"; // Install via `bun add p-limit` for concurrency control
 
-// Get the number of sessions from command-line argument (default to 1 if not provided)
+// Get args: numSessions from argv[2] (default 1), concurrency from argv[3] (default 3 for safety)
 const numSessions = parseInt(process.argv[2]) || 1;
+const concurrency = parseInt(process.argv[3]) || 3; // Lowered default to avoid rate limits
 const targetUrl = "https://castle-rock.vercel.app/"; // Replace with your target URL
 
-(async () => {
-  console.log(`Starting ${numSessions} bot session(s) for URL: ${targetUrl}`);
-  let browser = null; // Declare browser outside the loop
+// Function to run a single session (now async, launches its own browser)
+const runSession = async (sessionId) => {
+  console.log(`\n--- Starting session ${sessionId} ---`);
+  let browser = null;
+  let page = null;
 
   try {
-    // Launch a single stealth browser for all sessions (efficient reuse)
-    const browserSetup = await createStealthBrowser();
-    browser = browserSetup.browser; // We only need the browser here; we'll create pages inside the loop
-    console.log("[LOG] Single browser instance launched for all sessions.");
+    // Stagger start with random delay to slow down and mimic natural traffic
+    await sleep(1000, 5000); // 1-5 seconds delay
+    console.log(`[LOG] Session ${sessionId} staggered delay completed.`);
 
-    for (let i = 1; i <= numSessions; i++) {
-      console.log(`\n--- Starting session ${i} of ${numSessions} ---`);
-      let page = null;
+    // Generate unique proxy session ID to avoid conflicts/detection in parallel runs
+    const uniqueSessionId = `${Math.random().toString(36).substring(2, 15)}-sessionlength-300`;
+    const uniqueProxy = {
+      ...proxyBase,
+      username: `${proxyBase.username}${uniqueSessionId}`,
+    };
+    console.log(`[LOG] Using unique proxy session ID: ${uniqueProxy.username}`);
 
-      try {
-        // Create a new page for this session
-        page = await browser.newPage();
-        console.log("[LOG] New page created for session.");
+    // Launch a dedicated browser for this session with unique proxy
+    const browserSetup = await createStealthBrowser(uniqueProxy);
+    browser = browserSetup.browser;
+    page = browserSetup.page; // Use the initial page
 
-        // Reset page state for freshness and stealth
-        await page.setCacheEnabled(false);
-        await page.deleteCookie(...(await page.cookies()));
+    // Reset page state
+    await page.setCacheEnabled(false);
+    await page.deleteCookie(...(await page.cookies()));
+
+    // Reapply configs (if not already in createStealthBrowser)
+    const device = getRandomDevice();
+    const geo = pickGeo();
+    await page.setUserAgent(device.ua());
+    await page.setViewport({ width: device.width, height: device.height });
+    await page.setExtraHTTPHeaders({ "Accept-Language": geo.lang });
+    await page.emulateTimezone(geo.tz);
+
+    // Set up ad response promise
+    console.log("[LOG] Waiting for ad script response...");
+    const adResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("ad.a-ads.com") && response.status() === 200,
+      { timeout: 30000 },
+    );
+
+    // Debug responses
+    page.on("response", (response) => {
+      if (response.url().includes("ad.a-ads.com")) {
         console.log(
-          "[LOG] Page state reset (cookies cleared, cache disabled).",
+          `[DEBUG] Ad response: ${response.url()} - Status: ${response.status()}`,
         );
-
-        // Reapply page-specific configs (from createStealthBrowser logic)
-        const device = getRandomDevice();
-        const geo = pickGeo();
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          if (
-            ["image", "stylesheet", "font", "media", "other"].includes(
-              req.resourceType(),
-            )
-          ) {
-            req.abort();
-          } else {
-            req.continue();
-          }
-        });
-        await page.authenticate({
-          username: proxy.username,
-          password: proxy.password,
-        });
-        await page.setUserAgent(device.ua());
-        await page.setViewport({ width: device.width, height: device.height });
-        await page.setExtraHTTPHeaders({ "Accept-Language": geo.lang });
-        await page.emulateTimezone(geo.tz);
-
-        // Reapply fingerprint masking (evaluateOnNewDocument must be called before any navigation)
-        await page.evaluateOnNewDocument(() => {
-          Object.defineProperty(navigator, "webdriver", { get: () => false });
-          Object.defineProperty(navigator, "languages", {
-            get: () => (navigator.language || "en-US").split(","),
-          });
-          Object.defineProperty(navigator, "plugins", {
-            get: () => [
-              {
-                0: { type: "application/pdf" },
-                description: "Portable Document Format",
-              },
-              {
-                0: { type: "application/x-google-chrome-pdf" },
-                description: "Chrome PDF Plugin",
-              },
-            ],
-          });
-          Object.defineProperty(navigator, "hardwareConcurrency", {
-            get: () => pick([2, 4, 6, 8, 12]),
-          });
-          Object.defineProperty(navigator, "deviceMemory", {
-            get: () => pick([4, 8, 16]),
-          });
-          const gp = WebGLRenderingContext.prototype.getParameter;
-          WebGLRenderingContext.prototype.getParameter = function (p) {
-            if (p === 37445) return "Intel Inc.";
-            if (p === 37446) return "Intel Iris OpenGL Engine";
-            return gp.apply(this, arguments);
-          };
-          const nativeToString = Function.prototype.toString;
-          Function.prototype.toString = function () {
-            if (this === navigator.webdriver)
-              return "function webdriver() { [native code] }";
-            return nativeToString.call(this);
-          };
-        });
-        console.log("[LOG] Page configs and fingerprint masking reapplied.");
-
-        // Set up promise for ad response before goto
-        console.log("[LOG] Waiting for ad script response...");
-        const adResponsePromise = page.waitForResponse(
-          (response) =>
-            response.url().includes("ad.a-ads.com") &&
-            response.status() === 200,
-          { timeout: 30000 },
-        );
-
-        // Debug: Log ad-related responses
-        page.on("response", (response) => {
-          if (response.url().includes("ad.a-ads.com")) {
-            console.log(
-              `[DEBUG] Ad response: ${response.url()} - Status: ${response.status()}`,
-            );
-          }
-        });
-
-        // Navigate to the target URL
-        await page.goto(targetUrl, {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        });
-        console.log("Page loaded successfully.");
-
-        // Await ad response
-        await adResponsePromise;
-        console.log("[LOG] Ad script response received.");
-
-        // Run the impression session
-        await impressionSession(page);
-        console.log("Impression session completed.");
-      } catch (error) {
-        console.error(`Error during bot session ${i}:`, error.message);
-      } finally {
-        // Close the page (not the browser) to free resources
-        if (page) {
-          await page.close();
-          console.log(`Session ${i} page closed.`);
-        }
       }
-    }
+    });
+
+    // Navigate
+    await page.goto(targetUrl, { waitUntil: "networkidle2", timeout: 30000 });
+    console.log("Page loaded successfully.");
+
+    // Await ad
+    await adResponsePromise;
+    console.log("[LOG] Ad script response received.");
+
+    // Impression with longer dwell time
+    await impressionSession(page, undefined, 5000, 10000); // Increased to 5-10s
+    console.log("Impression session completed.");
   } catch (error) {
-    console.error("Error initializing browser:", error.message);
+    console.error(`Error in session ${sessionId}:`, error.message);
   } finally {
-    // Close the single browser instance at the end
     if (browser) {
       await browser.close();
-      console.log("Single browser instance closed.");
-    } else {
-      console.log("No browser to close.");
+      console.log(`Session ${sessionId} ended.`);
     }
   }
+};
+
+(async () => {
+  console.log(
+    `Starting ${numSessions} bot session(s) for URL: ${targetUrl} with concurrency ${concurrency}`,
+  );
+
+  // Use p-limit to control concurrency
+  const limit = plimit(concurrency);
+  const sessionPromises = Array.from({ length: numSessions }, (_, i) =>
+    limit(() => runSession(i + 1)),
+  );
+
+  // Run all sessions in parallel (limited by concurrency)
+  await Promise.all(sessionPromises);
 
   console.log(`All ${numSessions} bot sessions completed.`);
 })();
